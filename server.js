@@ -15,39 +15,30 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-// Your Cashfree Credentials from Environment Variables
 const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID;
 const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
 const CASHFREE_API_URL = "https://api.cashfree.com/pg/orders";
 
-// Function to generate Order ID → 6K-1001
 function generateOrderId(shopifyOrderNumber) {
   return `6K-${shopifyOrderNumber}`;
 }
 
-// Shopify Webhook Endpoint - triggers when new order is created
 app.post('/shopify-webhook', async (req, res) => {
   try {
     const shopifyOrder = req.body;
-
-    // Get Shopify order number
     const shopifyOrderNumber = shopifyOrder.order_number;
     const amount = shopifyOrder.total_price;
-    const customerPhone = shopifyOrder.billing_address?.phone || 
-                         shopifyOrder.shipping_address?.phone || 
-                         shopifyOrder.phone || '9999999999';
-    const customerId = shopifyOrder.email || 
-                      shopifyOrder.customer?.id?.toString() || 
-                      `CUST_${shopifyOrderNumber}`;
+    const rawPhone = shopifyOrder.billing_address?.phone || 
+                     shopifyOrder.shipping_address?.phone || 
+                     shopifyOrder.phone || '9999999999';
+    const customerPhone = rawPhone.replace(/\D/g, '').slice(-10);
+    const customerId = shopifyOrder.customer?.id?.toString() || 
+                       `CUST_${shopifyOrderNumber}`;
 
     console.log(`New Shopify Order received: #${shopifyOrderNumber}`);
-
-    // Generate custom Order ID
     const orderId = generateOrderId(shopifyOrderNumber);
-
     console.log(`Creating Cashfree order: ${orderId}`);
 
-    // Call Cashfree API
     const response = await fetch(CASHFREE_API_URL, {
       method: 'POST',
       headers: {
@@ -61,8 +52,8 @@ app.post('/shopify-webhook', async (req, res) => {
         order_amount: parseFloat(amount),
         order_currency: "INR",
         customer_details: {
-          customer_id: String(customerId).substring(0, 45),
-          customer_phone: customerPhone.replace(/\D/g, '').slice(-10)
+          customer_id: customerId,
+          customer_phone: customerPhone
         }
       })
     });
@@ -83,7 +74,6 @@ app.post('/shopify-webhook', async (req, res) => {
   }
 });
 
-// Old create-order endpoint (kept for backup)
 app.post('/create-order', async (req, res) => {
   try {
     const { shopifyOrderNumber, amount, customerPhone, customerId } = req.body;
@@ -121,7 +111,6 @@ app.post('/create-order', async (req, res) => {
   }
 });
 
-// Health check endpoint
 app.get('/', (req, res) => {
   res.json({ status: 'Server is running!' });
 });
