@@ -1,5 +1,4 @@
 const express = require('express');
-// Force redeploy
 const fetch = require('node-fetch');
 const app = express();
 
@@ -30,14 +29,12 @@ app.post('/shopify-webhook', async (req, res) => {
     const shopifyOrderNumber = shopifyOrder.order_number;
     const amount = shopifyOrder.total_price;
 
-    // Fix phone number
     const rawPhone = shopifyOrder.billing_address?.phone || 
                      shopifyOrder.shipping_address?.phone || 
                      shopifyOrder.phone || '9900406000';
     const cleanPhone = rawPhone.replace(/\D/g, '').slice(-10);
     const customerPhone = cleanPhone.length === 10 ? cleanPhone : '9900406000';
 
-    // Fix customer ID
     const customerId = shopifyOrder.customer?.id?.toString() || 
                        `CUST_${shopifyOrderNumber}`;
 
@@ -76,43 +73,6 @@ app.post('/shopify-webhook', async (req, res) => {
 
   } catch (error) {
     console.log(`❌ Error:`, error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.post('/create-order', async (req, res) => {
-  try {
-    const { shopifyOrderNumber, amount, customerPhone, customerId } = req.body;
-    const orderId = generateOrderId(shopifyOrderNumber);
-
-    const response = await fetch(CASHFREE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-version': '2023-08-01',
-        'x-client-id': CASHFREE_APP_ID,
-        'x-client-secret': CASHFREE_SECRET_KEY
-      },
-      body: JSON.stringify({
-        order_id: orderId,
-        order_amount: parseFloat(amount),
-        order_currency: "INR",
-        customer_details: {
-          customer_id: String(customerId),
-          customer_phone: customerPhone
-        }
-      })
-    });
-
-    const data = await response.json();
-
-    if (data.order_id) {
-      res.json({ success: true, order_id: orderId, data });
-    } else {
-      res.status(400).json({ success: false, error: data });
-    }
-
-  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
